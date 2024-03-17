@@ -2,259 +2,261 @@
 
 import { useState } from 'react';
 import axios from 'axios';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { CircleLoader } from 'react-spinners';
 
-const IndexPage = () => {
-  const [url, setUrl] = useState<string>('');
-  const [downloadOptions, setDownloadOptions] = useState<any[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string>('');
-
-  const handleDownload = async () => {
-    try {
-      const response = await axios.post('/api/downloader', { url });
-      const { videoOptions, audioOptions, videoOnlyOptions } = response.data;
-      setDownloadOptions([...videoOptions, ...audioOptions, ...videoOnlyOptions]);
-    } catch (error: any) {
-      setErrorMessage(error.response.data);
-    }
-  };
-
-  const handleFormatSelection = async (format: any) => {
-    try {
-      const response = await axios.post('/api/downloader', { url: format.url }, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: format.mimeType });
-      const title = document.title.replace(/[^a-z0-9]/gi, '_');
-      const filename = `${title}.${format.mimeType.split('/')[1]}`;
-      const downloadLink = document.createElement('a');
-      downloadLink.href = window.URL.createObjectURL(blob);
-      downloadLink.setAttribute('download', filename);
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      downloadLink.parentNode?.removeChild(downloadLink);
-    } catch (error) {
-      console.error('Failed to download video:', error);
-    }
-  };
-  
-
-  return (
-    <div className="container mx-auto mt-8">
-      <h1 className="text-2xl font-bold mb-4">YouTube Video Downloader</h1>
-      {errorMessage && <div className="text-red-600 mb-4">{errorMessage}</div>}
-      <input
-        type="text"
-        placeholder="Enter YouTube URL"
-        className="border border-gray-300 rounded px-2 py-1 mb-4"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
-      <button
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        onClick={handleDownload}
-      >
-        Get Video Info
-      </button>
-
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-2">Download Options</h2>
-        <ul>
-          {downloadOptions.map((option, index) => (
-            <li key={index} className="mb-2">
-              <button
-                className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-                onClick={() => handleFormatSelection(option)}
-              >
-                {option.quality}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+type DownloadOption = {
+  quality: string;
+  mimeType: string;
+  url: string;
+  container: string;
+  audioQuality: string;
 };
 
-export default IndexPage;
+export default function Home() {
+  const [videoLink, setVideoLink] = useState("");
+  const [options, setOptions] = useState<{ videoOptions: DownloadOption[], audioOptions: DownloadOption[], videoOnlyOptions: DownloadOption[] }>({ videoOptions: [], audioOptions: [], videoOnlyOptions: [] });
+  const [selectedOption, setSelectedOption] = useState<DownloadOption | null>(null);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleDownload = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.post('/api/downloader', { url: videoLink });
+      setOptions(res.data);
+    } catch (err) {
+      toast.error('An error occurred.\nTry again later or check the video link.', {
+        position: "top-center",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: false,
+        draggable: false,
+        progress: undefined,
+        theme: "colored",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleOptionSelect = (option: DownloadOption) => {
+    setSelectedOption(option);
+    setShowPlayer(true);
+  }
+
+  return (
+    <main className="mx-auto max-w-screen-lg px-4">
+      <header className="text-center mt-8">
+        <h1 className="text-3xl font-bold text-white">YouTube Media Downloader</h1>
+        <div className="mt-4">
+          <input type="text" placeholder="Paste your YouTube video link here..." className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:border-gray-300 text-center" value={videoLink} onChange={(e) => setVideoLink(e.target.value)} />
+        </div>
+        <button className="mt-4 bg-white text-black px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none focus:bg-gray-300" onClick={handleDownload}>
+          {loading ? <CircleLoader color="black" size={24} /> : <>Search</>}
+        </button>
+      </header>
+
+      <ToastContainer
+        position="top-center"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss={false}
+        draggable={false}
+        pauseOnHover={false}
+        theme="colored"
+      />
+
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-1">
+          {options.videoOptions.length > 0 &&
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Video</h3>
+              <div className="flex flex-wrap justify-center gap-4">
+                {options.videoOptions.map((option, index) => (
+                  <button key={index} className="bg-white text-black px-4 py-2 rounded-md hover:bg-bg-gray-300 focus:outline-none focus:bg-bg-gray-300 flex items-center gap-2" onClick={() => handleOptionSelect(option)}>
+                    {option.quality} - {option.container}
+                  </button>
+                ))}
+              </div>
+            </div>
+          }
+        </div>
+
+        <div className="sm:col-span-1">
+          {options.audioOptions.length > 0 &&
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Audio Only</h3>
+              <div className="flex flex-wrap justify-center gap-4">
+                {options.audioOptions.map((option, index) => (
+                  <button key={index} className="bg-white text-black px-4 py-2 rounded-md hover:bg-bg-gray-300 focus:outline-none focus:bg-bg-gray-300 flex items-center gap-2" onClick={() => handleOptionSelect(option)}>
+                    {option.audioQuality.split('_').pop()?.toLowerCase()} - {option.container}
+                  </button>
+                ))}
+              </div>
+            </div>
+          }
+        </div>
+
+        <div className="sm:col-span-1">
+          {options.videoOnlyOptions.length > 0 &&
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Video Only</h3>
+              <div className="flex flex-wrap justify-center gap-4">
+                {options.videoOnlyOptions.map((option, index) => (
+                  <button key={index} className="bg-white text-black px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none focus:bg-gray-300 flex items-center gap-2" onClick={() => handleOptionSelect(option)}>
+                    {option.quality} - {option.container}
+                  </button>
+                ))}
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      {showPlayer && selectedOption &&
+        <div className="mt-8 flex justify-center">
+          <div className="aspect-w-16 aspect-h-9">
+            <video src={selectedOption.url} className="object-cover" controls width="640" height="360"></video>
+          </div>
+        </div>
+      }
+
+      <div className="mt-8 mb-4">
+        <h2 className="text-2xl font-bold text-white mb-4 text-center">How to use</h2>
+        <div className="flex justify-center items-center">
+          <img src="/downloader.png" alt="Step 1" className="mx-auto max-w-full h-auto" style={{maxHeight: '300px'}} />
+        </div>
+      </div>
+
+    </main>
+  );
+}
 
 
 // import { useState } from 'react';
 // import axios from 'axios';
+// import { toast, ToastContainer } from 'react-toastify';
+// import 'react-toastify/dist/ReactToastify.css';
 
-// const IndexPage = () => {
-//   const [url, setUrl] = useState<string>('');
-//   const [downloadOptions, setDownloadOptions] = useState<any[]>([]);
-//   const [errorMessage, setErrorMessage] = useState<string>('');
+// type DownloadOption = {
+//   quality: string;
+//   mimeType: string;
+//   url: string;
+//   container: string;
+//   audioQuality: string;
+// };
+
+// export default function Home() {
+//   const [videoLink, setVideoLink] = useState("");
+//   const [options, setOptions] = useState<{ videoOptions: DownloadOption[], audioOptions: DownloadOption[], videoOnlyOptions: DownloadOption[] }>({ videoOptions: [], audioOptions: [], videoOnlyOptions: [] });
+//   const [selectedOption, setSelectedOption] = useState<DownloadOption | null>(null);
+//   const [showPlayer, setShowPlayer] = useState(false);
 
 //   const handleDownload = async () => {
 //     try {
-//       const response = await axios.post('/api/downloader', { url });
-//       const { videoOptions, audioOptions, videoOnlyOptions } = response.data;
-//       setDownloadOptions([...videoOptions, ...audioOptions, ...videoOnlyOptions]);
-//     } catch (error: any) {
-//       setErrorMessage(error.response.data);
+//       const res = await axios.post('/api/downloader', { url: videoLink });
+//       setOptions(res.data);
+//     } catch (err) {
+//       toast.error('An error occurred.\nTry again later or check the video link.', {
+//         position: "top-center",
+//         autoClose: 5000,
+//         hideProgressBar: false,
+//         closeOnClick: true,
+//         pauseOnHover: false,
+//         draggable: false,
+//         progress: undefined,
+//         theme: "colored",
+//         });
 //     }
-//   };
+//   }
 
-//   const handleFormatSelection = (format: any) => {
-//     const { quality, mimeType, url } = format;
-//     const title = document.title.replace(/[^a-z0-9]/gi, '_'); // Remove special characters from video title
-//     const filename = `${title}.${mimeType.split('/')[1]}`;
-//     fetch(url)
-//       .then((res) => res.blob())
-//       .then((blob) => {
-//         const downloadLink = document.createElement('a');
-//         downloadLink.href = window.URL.createObjectURL(new Blob([blob]));
-//         downloadLink.setAttribute('download', filename);
-//         document.body.appendChild(downloadLink);
-//         downloadLink.click();
-//         downloadLink.parentNode?.removeChild(downloadLink);
-//       });
-//   };
+//   const handleOptionSelect = (option: DownloadOption) => {
+//     setSelectedOption(option);
+//     setShowPlayer(true);
+//   }
 
 //   return (
-//     <div className="container mx-auto mt-8">
-//       <h1 className="text-2xl font-bold mb-4">YouTube Video Downloader</h1>
-//       {errorMessage && <div className="text-red-600 mb-4">{errorMessage}</div>}
-//       <input
-//         type="text"
-//         placeholder="Enter YouTube URL"
-//         className="border border-gray-300 rounded px-2 py-1 mb-4"
-//         value={url}
-//         onChange={(e) => setUrl(e.target.value)}
+//     <main className="mx-auto max-w-screen-lg px-4">
+//       <header className="text-center mt-8">
+//         <h1 className="text-3xl font-bold text-blue-500">YouTube Media Downloader</h1>
+//         <div className="mt-4">
+//           <input type="text" placeholder="Paste your YouTube video link here..." className="w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:border-blue-500 text-center" value={videoLink} onChange={(e) => setVideoLink(e.target.value)} />
+//         </div>
+//         <button className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600" onClick={handleDownload}>Search</button>
+//       </header>
+
+//       <ToastContainer
+//       position="top-center"
+//       autoClose={5000}
+//       hideProgressBar={false}
+//       newestOnTop={false}
+//       closeOnClick
+//       rtl={false}
+//       pauseOnFocusLoss={false}
+//       draggable={false}
+//       pauseOnHover={false}
+//       theme="colored"
 //       />
-//       <button
-//         className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-//         onClick={handleDownload}
-//       >
-//         Get Video Info
-//       </button>
-
+      
 //       <div className="mt-8">
-//         <h2 className="text-lg font-semibold mb-2">Download Options</h2>
-//         <ul>
-//           {downloadOptions.map((option, index) => (
-//             <li key={index} className="mb-2">
-//               <button
-//                 className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-//                 onClick={() => handleFormatSelection(option)}
-//               >
-//                 {option.quality}
-//               </button>
-//             </li>
-//           ))}
-//         </ul>
+//         {options.videoOptions.length > 0 &&
+//           <div className="mt-8">
+//             <h3 className="text-lg font-semibold text-blue-500 text-center">Video</h3>
+//             <div className="flex flex-wrap justify-center gap-4">
+//               {options.videoOptions.map((option, index) => (
+//                 <button key={index} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600" onClick={() => handleOptionSelect(option)}>{option.quality} - {option.container}</button>
+//               ))}
+//             </div>
+//           </div>
+//         }
+
+//         {options.audioOptions.length > 0 &&
+//           <div className="mt-8">
+//             <h3 className="text-lg font-semibold text-blue-500 text-center">Audio Only</h3>
+//             <div className="flex flex-wrap justify-center gap-4">
+//               {options.audioOptions.map((option, index) => (
+//                 <button key={index} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600" onClick={() => handleOptionSelect(option)}>
+//                   {option.audioQuality.split('_').pop()?.toLowerCase()} - {option.container}
+//                 </button>
+//               ))}
+//             </div>
+//           </div>
+//         }
+
+//         {options.videoOnlyOptions.length > 0 &&
+//           <div className="mt-8">
+//             <h3 className="text-lg font-semibold text-blue-500 text-center">Video Only</h3>
+//             <div className="flex flex-wrap justify-center gap-4">
+//               {options.videoOnlyOptions.map((option, index) => (
+//                 <button key={index} className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:bg-blue-600" onClick={() => handleOptionSelect(option)}>{option.quality} - {option.container}</button>
+//               ))}
+//             </div>
+//           </div>
+//         }
 //       </div>
-//     </div>
+
+//       {showPlayer && selectedOption &&
+//         <div className="mt-8 flex justify-center">
+//           <div className="aspect-w-16 aspect-h-9">
+//             <video src={selectedOption.url} className="object-cover" controls width="640" height="360"></video>
+//           </div>
+//         </div>
+//       }
+
+//       <div className="mt-8 mb-4">
+//         <h2 className="text-2xl font-bold text-blue-500 mb-4 text-center">How to use</h2>
+//         <div className="grid grid-cols-2 justify-center items-center">
+//           <img src="/search.png" alt="Step 1" className="mx-auto" />
+//           <img src="/download.png" alt="Step 2" className="mx-auto" />
+//         </div>
+//       </div>
+
+//     </main>
 //   );
-// };
-
-// export default IndexPage;
-
-
-// import { useState } from 'react';
-// import axios from 'axios';
-
-// const IndexPage = () => {
-//   const [url, setUrl] = useState<string>('');
-//   const [videoOptions, setVideoOptions] = useState<any[]>([]);
-//   const [audioOptions, setAudioOptions] = useState<any[]>([]);
-//   const [videoOnlyOptions, setVideoOnlyOptions] = useState<any[]>([]);
-//   const [errorMessage, setErrorMessage] = useState<string>('');
-
-//   const handleDownload = async (url: string) => {
-//     try {
-//       const response = await axios.post('/api/downloader', { url });
-//       const { videoOptions, audioOptions, videoOnlyOptions } = response.data;
-//       setVideoOptions(videoOptions);
-//       setAudioOptions(audioOptions);
-//       setVideoOnlyOptions(videoOnlyOptions);
-//     } catch (error: any) {
-//       setErrorMessage(error.response.data);
-//     }
-//   };
-
-//   const handleFormatSelection = (format: any) => {
-//     const { quality, mimeType, url } = format;
-//     const title = document.title.replace(/[^a-z0-9]/gi, '_'); // Remove special characters from video title
-//     const filename = `${title}.${mimeType.split('/')[1]}`;
-//     fetch(url)
-//       .then((res) => res.blob())
-//       .then((blob) => {
-//         const downloadLink = document.createElement('a');
-//         downloadLink.href = window.URL.createObjectURL(new Blob([blob]));
-//         downloadLink.setAttribute('download', filename);
-//         document.body.appendChild(downloadLink);
-//         downloadLink.click();
-//         downloadLink.parentNode?.removeChild(downloadLink);
-//       });
-//   };
-
-//   return (
-//     <div className="container mx-auto mt-8">
-//       <h1 className="text-2xl font-bold mb-4">YouTube Video Downloader</h1>
-//       {errorMessage && <div className="text-red-600 mb-4">{errorMessage}</div>}
-//       <input
-//         type="text"
-//         placeholder="Enter YouTube URL"
-//         className="border border-gray-300 rounded px-2 py-1 mb-4"
-//         value={url}
-//         onChange={(e) => setUrl(e.target.value)}
-//       />
-//       <button
-//         className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-//         onClick={() => handleDownload(url)}
-//       >
-//         Get Video Info
-//       </button>
-
-//       <div className="mt-8">
-//         <h2 className="text-lg font-semibold mb-2">Video with Audio</h2>
-//         <ul>
-//           {videoOptions.map((option, index) => (
-//             <li key={index} className="mb-2">
-//               <button
-//                 className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-//                 onClick={() => handleFormatSelection(option)}
-//               >
-//                 {option.quality}
-//               </button>
-//             </li>
-//           ))}
-//         </ul>
-//       </div>
-
-//       <div className="mt-8">
-//         <h2 className="text-lg font-semibold mb-2">Video Only</h2>
-//         <ul>
-//           {videoOnlyOptions.map((option, index) => (
-//             <li key={index} className="mb-2">
-//               <button
-//                 className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-//                 onClick={() => handleFormatSelection(option)}
-//               >
-//                 {option.quality}
-//               </button>
-//             </li>
-//           ))}
-//         </ul>
-//       </div>
-
-//       <div className="mt-8">
-//         <h2 className="text-lg font-semibold mb-2">Audio Only</h2>
-//         <ul>
-//           {audioOptions.map((option, index) => (
-//             <li key={index} className="mb-2">
-//               <button
-//                 className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-//                 onClick={() => handleFormatSelection(option)}
-//               >
-//                 {option.quality}
-//               </button>
-//             </li>
-//           ))}
-//         </ul>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default IndexPage;
+// }

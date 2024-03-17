@@ -1,6 +1,14 @@
 import ytdl from 'ytdl-core';
 import { NextRequest, NextResponse } from 'next/server';
 
+interface Option {
+  quality: string;
+  mimeType: string;
+  url: string;
+  container: string;
+  audioQuality: string;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const requestBody = await request.json();
@@ -16,29 +24,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw new Error('Video not found');
     }
 
-    const videoFormats = ytdl.filterFormats(info.formats, 'video');
-    const audioFormats = ytdl.filterFormats(info.formats, 'audio');
+    const formats = info.formats;
 
-    const videoOptions = videoFormats.map((format) => ({
-      quality: format.qualityLabel,
-      mimeType: format.mimeType,
-      url: format.url,
-      container: format.container,
-    }));
+    const videoOptions: Option[] = [];
+    const audioOptions: Option[] = [];
+    const videoOnlyOptions: Option[] = [];
 
-    const audioOptions = audioFormats.map((format) => ({
-      quality: format.qualityLabel,
-      mimeType: format.mimeType,
-      url: format.url,
-      container: format.container,
-    }));
+    formats.forEach((format) => {
+      const option: Option = {
+        quality: format.qualityLabel || '',
+        mimeType: format.mimeType || '',
+        url: format.url,
+        container: format.container || '',
+        audioQuality: format.audioQuality || '',
+      };
+      if (format.hasVideo && format.hasAudio) {
+        videoOptions.push(option);
+      } else if (format.hasVideo && !format.hasAudio) {
+        videoOnlyOptions.push(option);
+      } else if (!format.hasVideo && format.hasAudio) {
+        audioOptions.push(option);
+      }
+    });
 
-    const videoOnlyOptions = videoFormats.filter((format) => format.hasVideo && !format.hasAudio).map((format) => ({
-      quality: format.qualityLabel,
-      mimeType: format.mimeType,
-      url: format.url,
-      container: format.container,
-    }));
+    videoOptions.sort((a, b) => {
+      if (a.quality === b.quality) {
+        return a.container.localeCompare(b.container);
+      }
+      return b.quality.localeCompare(a.quality);
+    });
+
+    audioOptions.sort((a, b) => {
+      if (a.quality === b.quality) {
+        return a.container.localeCompare(b.container);
+      }
+      return b.quality.localeCompare(a.quality);
+    });
+
+    videoOnlyOptions.sort((a, b) => {
+      if (a.quality === b.quality) {
+        return a.container.localeCompare(b.container);
+      }
+      return b.quality.localeCompare(a.quality);
+    });
 
     return NextResponse.json({ videoOptions, audioOptions, videoOnlyOptions });
   } catch (error: any) {
