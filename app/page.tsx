@@ -58,15 +58,23 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-screen-lg px-4">
+      <div className="bg-yellow-500 text-black p-4 rounded-md mb-4  max-w-screen-lg mx-auto">
+        <p className="text-center text-sm md:text-base font-semibold">
+          Site under maintenance. Downloads are temporarily disabled!
+        </p>
+      </div>
       <header className="text-center mt-8">
         <h1 className="text-3xl font-bold text-white">YouTube Media Downloader</h1>
         <div className="mt-4 coolinput">
           <label htmlFor="videoLink" className="text">Paste your YouTube video link:</label>
           <input type="text" placeholder="Write here..." name="input" className="input w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:border-gray-300 text-center" value={videoLink} onChange={(e) => setVideoLink(e.target.value)} />
         </div>
-        <button className="mt-4 bg-white text-black px-4 py-2 rounded-md hover:bg-green-500 border-green-500 border-solid border-r-2 border-l-2 border-t-2 border-b-2" onClick={handleDownload}>
+        <button disabled className="mt-4 bg-gray-400 text-black px-4 py-2 rounded-md cursor-not-allowed">
           {loading ? <CircleLoader color="#00FA9A" size={24} /> : <>Search</>}
         </button>
+        {/* <button className="mt-4 bg-white text-black px-4 py-2 rounded-md hover:bg-green-500 border-green-500 border-solid border-r-2 border-l-2 border-t-2 border-b-2" onClick={handleDownload}>
+          {loading ? <CircleLoader color="#00FA9A" size={24} /> : <>Search</>}
+        </button> */}
       </header>
 
       <ToastContainer
