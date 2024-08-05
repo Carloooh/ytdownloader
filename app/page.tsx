@@ -57,7 +57,7 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-screen-lg px-4">
+    <main className="mx-auto max-w-screen-lg px-4 flex flex-col justify-center items-center min-h-screen">
       <div className="bg-yellow-500 text-black p-4 rounded-md mb-4  max-w-screen-lg mx-auto">
         <p className="text-center text-sm md:text-base font-semibold">
           Site under maintenance. Downloads are temporarily disabled!
