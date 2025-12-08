@@ -126,20 +126,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
     }
     
-    // CRITICAL: Always use mobile clients to get DOWNLOADABLE formats
-    // Without specifying mobile client, YouTube only returns streaming (m3u8) formats
-    // Android/iOS clients request actual downloadable mp4/webm files
+    // Prepare arguments
     const args = [
         url,
         '--dump-json',
         '--no-warnings',
-        '--no-playlist',
-        '--extractor-args', 'youtube:player_client=ios,android'
+        '--no-playlist'
     ];
     
-    // Add cookies for authentication if available (bypasses bot detection)
     if (hasCookies && cookieFilePath) {
+        // With cookies: just use cookies, no special client args
+        // Cookies provide authentication from web session
         args.push('--cookies', cookieFilePath);
+    } else {
+        // Without cookies: use Android client emulation to reduce bot detection
+        args.push('--extractor-args', 'youtube:player_client=android,web;player_skip=webpage,configs');
+        args.push('--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip');
     }
     
     try {
