@@ -112,27 +112,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get metadata using yt-dlp --dump-json
     const ytDlp = await getYtDlp();
     
-    // Prepare arguments
-    const args = [
-        url,
-        '--dump-json',
-        '--no-warnings',
-        '--no-playlist',
-        '--extractor-args', 'youtube:player_client=android,web;player_skip=webpage,configs',
-        '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'
-    ];
-    
     // Add cookies if available in environment variable
     let cookieFilePath: string | null = null;
-    if (process.env.YOUTUBE_COOKIES) {
+    const hasCookies = !!process.env.YOUTUBE_COOKIES;
+    
+    if (hasCookies) {
         const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
         cookieFilePath = isProduction 
             ? path.join('/tmp', 'youtube-cookies.txt')
             : path.join(process.cwd(), 'youtube-cookies.txt');
         
         // Write cookies to file
-        fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES);
+        fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
+    }
+    
+    // Prepare arguments - use web client with cookies, Android without
+    const args = [
+        url,
+        '--dump-json',
+        '--no-warnings',
+        '--no-playlist'
+    ];
+    
+    if (hasCookies && cookieFilePath) {
+        // With cookies: use standard web client for best format support
         args.push('--cookies', cookieFilePath);
+    } else {
+        // Without cookies: use Android client emulation to reduce bot detection
+        args.push('--extractor-args', 'youtube:player_client=android,web;player_skip=webpage,configs');
+        args.push('--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip');
     }
     
     try {
