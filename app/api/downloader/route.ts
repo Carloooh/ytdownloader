@@ -160,17 +160,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         // Formats are usually sorted by yt-dlp, but we process them
         let formats = info.formats || [];
-        console.log(`Total formats received: ${formats.length}`);
-        
         // Ensure we process best formats? Reverse is often helpful as yt-dlp lists best at end
         formats = formats.reverse();
 
         formats.forEach((format: any) => {
             // Exclude m3u8 (HLS) formats as they are playlists
-            if (format.protocol === 'm3u8' || format.protocol === 'm3u8_native') {
-                console.log(`Skipping m3u8 format: ${format.format_id}`);
-                return;
-            }
+            if (format.protocol === 'm3u8' || format.protocol === 'm3u8_native') return;
 
             // Better quality label parsing
             let qualityLabel = 'Unknown';
@@ -199,10 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 size: fileSizeStr
             };
 
-            if(option.container !== 'mp4' && option.container !== 'webm' && option.container !== 'm4a') {
-                console.log(`Rejecting format ${format.format_id} with container: ${option.container}`);
-                return;
-            }
+            if(option.container !== 'mp4' && option.container !== 'webm' && option.container !== 'm4a') return;
 
             if (option.hasVideo && option.hasAudio) {
                 videoOptions.push(option);
@@ -244,8 +236,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 return 0;
             });
         };
-
-        console.log(`Final counts - Video+Audio: ${videoOptions.length}, Audio: ${audioOptions.length}, VideoOnly: ${videoOnlyOptions.length}`);
 
         return NextResponse.json({
             title: info.title,
