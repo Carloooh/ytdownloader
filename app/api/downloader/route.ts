@@ -115,7 +115,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         url,
         '--dump-json',
         '--no-warnings',
-        '--no-playlist'
+        '--no-playlist',
+        '--extractor-args', 'youtube:player_client=android,web',
+        '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'
     ]);
     
     const info = JSON.parse(metadata);
