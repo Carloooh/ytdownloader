@@ -112,45 +112,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get metadata using yt-dlp --dump-json
     const ytDlp = await getYtDlp();
     
-    // Add cookies if available in environment variable
-    let cookieFilePath: string | null = null;
-    const hasCookies = !!process.env.YOUTUBE_COOKIES;
-    
-    if (hasCookies) {
-        const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
-        cookieFilePath = isProduction 
-            ? path.join('/tmp', 'youtube-cookies.txt')
-            : path.join(process.cwd(), 'youtube-cookies.txt');
-        
-        // Write cookies to file
-        fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
-    }
-    
-    // Prepare arguments
+    // Strategy: comprehensive browser simulation WITHOUT cookies
+    // Cookies cause YouTube to return streaming-only formats (m3u8/mhtml)
+    // Instead: simulate Android app thoroughly to get downloadable formats
     const args = [
         url,
         '--dump-json',
         '--no-warnings',
-        '--no-playlist'
+        '--no-playlist',
+        // Use Android client with aggressive emulation
+        '--extractor-args', 'youtube:player_client=android;player_skip=configs,webpage;skip=authcheck',
+        '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+        // Add common headers to look more like real request
+        '--add-header', 'Accept-Language:en-US,en;q=0.9',
+        '--add-header', 'Accept:*/*'
     ];
-    
-    if (hasCookies && cookieFilePath) {
-        // With cookies: ONLY use cookies, NO client specification
-        // Any client arg (android/ios/mweb) conflicts with web session cookies
-        // Let yt-dlp use default client with cookie authentication
-        args.push('--cookies', cookieFilePath);
-    } else {
-        // Without cookies: use Android client to reduce bot detection
-        args.push('--extractor-args', 'youtube:player_client=android');
-    }
     
     try {
         const metadata = await ytDlp.execPromise(args);
-        
-        // Clean up cookie file if it was created
-        if (cookieFilePath && fs.existsSync(cookieFilePath)) {
-            fs.unlinkSync(cookieFilePath);
-        }
         
         const info = JSON.parse(metadata);
 
@@ -255,10 +234,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             videoOnlyOptions: cleanup(videoOnlyOptions)
         });
     } catch (ytDlpError) {
-        // Clean up cookie file if it exists
-        if (cookieFilePath && fs.existsSync(cookieFilePath)) {
-            fs.unlinkSync(cookieFilePath);
-        }
         throw ytDlpError;
     }
 
