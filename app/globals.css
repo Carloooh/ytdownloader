@@ -1,9 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 body {
-    background-color: black;
+  background-color: black;
 }
 
 .coolinput label.text {
@@ -17,14 +15,14 @@ body {
   -webkit-text-stroke: 0.5px black;
 }
 
-.coolinput input[type=text].input {
+.coolinput input[type="text"].input {
   padding: 11px 10px;
   font-size: 0.75rem;
   border: 2px mediumspringgreen solid;
   border-radius: 5px;
 }
 
-.coolinput input[type=text].input:focus {
+.coolinput input[type="text"].input:focus {
   outline: none;
 }
 
@@ -57,7 +55,8 @@ body {
   border-color: teal;
 }
 
-.button::after, .button::before {
+.button::after,
+.button::before {
   content: "";
   position: absolute;
   width: 9em;
