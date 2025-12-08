@@ -5,11 +5,8 @@ import path from 'path';
 // Initialize wrapper with the binary we downloaded
 import fs from 'fs';
 
-import os from 'os';
-
 // Helper to get wrapper instance
 const getYtDlp = () => {
-    // ... existing code ...
     // @ts-ignore
     const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
     const filename = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
@@ -20,23 +17,11 @@ const getYtDlp = () => {
         console.error(`BINARY MISSING: Could not find yt-dlp binary at ${binaryPath}`);
         console.error(`CWD: ${process.cwd()}`);
         console.error(`Dir contents: ${fs.readdirSync(process.cwd()).join(', ')}`);
+        // Try to look in adjacent folders? Vercel sometimes puts things in weird places
     }
 
     return new YTDlpWrapClass(binaryPath);
 }
-
-const ensureCookies = () => {
-    const cookies = process.env.YOUTUBE_COOKIES;
-    if (!cookies) return undefined;
-    
-    const tempDir = os.tmpdir();
-    const cookiePath = path.join(tempDir, 'youtube_cookies.txt');
-    
-    // Write if not exists (or overwrite to ensure freshness?) 
-    // Overwriting is safer if env var changes
-    fs.writeFileSync(cookiePath, cookies);
-    return cookiePath;
-};
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -47,19 +32,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return new NextResponse('Invalid URL', { status: 400 });
     }
 
-    const cookiePath = ensureCookies();
-    const args = [
+    // Get metadata using yt-dlp --dump-json
+    const metadata = await getYtDlp().execPromise([
         url,
         '--dump-json',
         '--no-warnings',
         '--no-playlist'
-    ];
-    if (cookiePath) {
-        args.push('--cookies', cookiePath);
-    }
-
-    // Get metadata using yt-dlp --dump-json
-    const metadata = await getYtDlp().execPromise(args);
+    ]);
     
     const info = JSON.parse(metadata);
 
