@@ -7,7 +7,8 @@ import path from 'path';
 const getYtDlp = () => {
     // @ts-ignore
     const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
-    return new YTDlpWrapClass(path.join(process.cwd(), 'yt-dlp.exe'));
+    const filename = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    return new YTDlpWrapClass(path.join(process.cwd(), filename));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -66,7 +67,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             hasVideo: format.vcodec !== 'none',
             height: format.height || 0,
             abr: format.abr || 0,
-            size: fileSizeStr
+            size: fileSizeStr,
+            bytes: fileSize || 0
         };
 
         if(option.container !== 'mp4' && option.container !== 'webm' && option.container !== 'm4a') return;
