@@ -2,9 +2,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import YTDlpWrap from 'yt-dlp-wrap';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 
 // Cache for the binary path to avoid re-downloading
 let cachedBinaryPath: string | null = null;
+
+// Helper to download file from URL
+const downloadFile = async (url: string, dest: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(dest);
+        https.get(url, (response) => {
+            // Follow redirects
+            if (response.statusCode === 302 || response.statusCode === 301) {
+                const redirectUrl = response.headers.location;
+                if (redirectUrl) {
+                    file.close();
+                    fs.unlinkSync(dest);
+                    downloadFile(redirectUrl, dest).then(resolve).catch(reject);
+                    return;
+                }
+            }
+            
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close();
+                resolve();
+            });
+        }).on('error', (err) => {
+            fs.unlinkSync(dest);
+            reject(err);
+        });
+    });
+};
 
 // Helper to get or download yt-dlp binary
 const getYtDlpPath = async (): Promise<string> => {
@@ -16,8 +45,18 @@ const getYtDlpPath = async (): Promise<string> => {
     const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
     const platform = process.platform;
     
-    // Determine binary name based on platform
-    const binaryName = platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    // Determine binary name and download URL
+    let binaryName: string;
+    let downloadUrl: string;
+    
+    if (platform === 'win32') {
+        binaryName = 'yt-dlp.exe';
+        downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
+    } else {
+        // Linux - download the standalone binary
+        binaryName = 'yt-dlp';
+        downloadUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
+    }
     
     // Use /tmp on Vercel (only writable directory), project root locally
     const binaryPath = isProduction 
@@ -38,19 +77,17 @@ const getYtDlpPath = async (): Promise<string> => {
         return binaryPath;
     }
     
-    console.log(`Downloading yt-dlp binary for ${platform} to ${binaryPath}...`);
+    console.log(`Downloading yt-dlp standalone binary for ${platform} from ${downloadUrl}...`);
     
-    // Download binary if not exists
-    // @ts-ignore
-    const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
-    await YTDlpWrapClass.downloadFromGithub(binaryPath);
+    // Download the standalone binary
+    await downloadFile(downloadUrl, binaryPath);
     
     // Make executable on Linux
     if (platform !== 'win32') {
         fs.chmodSync(binaryPath, 0o755);
     }
     
-    console.log('yt-dlp binary downloaded successfully');
+    console.log('yt-dlp standalone binary downloaded successfully');
     cachedBinaryPath = binaryPath;
     return binaryPath;
 };
