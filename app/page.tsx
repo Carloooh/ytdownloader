@@ -14,10 +14,7 @@ type DownloadOption = {
   audioQuality?: string;
   itag: number;
   size?: string;
-  bytes?: number;
 };
-
-
 
 type ApiResponse = {
   title: string;
@@ -62,14 +59,10 @@ export default function Home() {
     }
   }
 
-  const triggerDownload = (url: string, itag: number, container: string, bytes?: number) => {
+  const triggerDownload = (url: string, itag: number, container: string) => {
     if (!data) return;
-    let downloadUrl = `/api/stream-download?url=${encodeURIComponent(videoLink)}&itag=${itag}&title=${encodeURIComponent(data.title)}&container=${container}`;
-    if (bytes) {
-        downloadUrl += `&size=${bytes}`;
-    }
-    // Use location.href to trigger download in same page (browser handles attachment)
-    window.location.href = downloadUrl;
+    const downloadUrl = `/api/stream-download?url=${encodeURIComponent(videoLink)}&itag=${itag}&title=${encodeURIComponent(data.title)}&container=${container}`;
+    window.open(downloadUrl, '_blank');
   }
 
   const OptionCard = ({ title, options, icon }: { title: string, options: DownloadOption[], icon: string }) => {
@@ -91,16 +84,15 @@ export default function Home() {
                         className="bg-black text-[mediumspringgreen] border border-[mediumspringgreen] rounded px-2 py-1 outline-none text-sm w-full sm:w-auto"
                         onChange={(e) => {
                              if(e.target.value) {
-                                const index = Number(e.target.value);
-                                const selectedOpt = opts[index];
-                                triggerDownload(videoLink, selectedOpt.itag, selectedOpt.container, selectedOpt.bytes);
+                                const [itag, container] = e.target.value.split('-');
+                                triggerDownload(videoLink, Number(itag), container);
                                 e.target.value = ""; // Reset
                              }
                         }}
                     >
                         <option value="">Download...</option>
                         {opts.map((opt, j) => (
-                            <option key={j} value={j}>
+                            <option key={j} value={`${opt.itag}-${opt.container}`}>
                                 {opt.container.toUpperCase()} {opt.size ? `(${opt.size})` : ''}
                             </option>
                         ))}

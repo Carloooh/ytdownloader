@@ -2,15 +2,11 @@
   "name": "mediadownloader",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=20"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "node scripts/download-yt-dlp.js"
+    "lint": "next lint"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
