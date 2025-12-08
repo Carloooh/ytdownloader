@@ -16,8 +16,7 @@ async function download() {
     console.log(`Downloading ${filename} to ${binaryPath}...`);
 
     // Always fetch latest to ensure we bypass 403s
-    // Explicitly pass platform to ensure we get the standalone binary (yt-dlp_linux) not the zipapp
-    await YTDlpWrap.downloadFromGithub(binaryPath, undefined, platform);
+    await YTDlpWrap.downloadFromGithub(binaryPath);
     console.log('Downloaded yt-dlp successfully.');
 
     // Ensure executable permissions on Unix-like systems
