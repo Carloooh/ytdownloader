@@ -126,20 +126,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
     }
     
-    // Prepare arguments - ALWAYS use Android client for best format support
-    // Cookies provide authentication to bypass bot detection
+    // Prepare arguments - use web client with cookies, Android without
     const args = [
         url,
         '--dump-json',
         '--no-warnings',
-        '--no-playlist',
-        '--extractor-args', 'youtube:player_client=android,web;player_skip=webpage,configs',
-        '--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'
+        '--no-playlist'
     ];
     
-    // Add cookies for authentication if available
     if (hasCookies && cookieFilePath) {
+        // With cookies: use standard web client for best format support
         args.push('--cookies', cookieFilePath);
+    } else {
+        // Without cookies: use Android client emulation to reduce bot detection
+        args.push('--extractor-args', 'youtube:player_client=android,web;player_skip=webpage,configs');
+        args.push('--user-agent', 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip');
     }
     
     try {
