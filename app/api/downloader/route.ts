@@ -126,20 +126,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
     }
     
-    // CRITICAL: Use mobile web client for downloadable formats + cookie compatibility
-    // 'mweb' is mobile web browser - compatible with web session cookies
-    // Still provides downloadable formats unlike desktop web client
+    // Prepare arguments
     const args = [
         url,
         '--dump-json',
         '--no-warnings',
-        '--no-playlist',
-        '--extractor-args', 'youtube:player_client=mweb'
+        '--no-playlist'
     ];
     
-    // Add cookies for authentication if available (bypasses bot detection)
     if (hasCookies && cookieFilePath) {
+        // With cookies: ONLY use cookies, NO client specification
+        // Any client arg (android/ios/mweb) conflicts with web session cookies
+        // Let yt-dlp use default client with cookie authentication
         args.push('--cookies', cookieFilePath);
+    } else {
+        // Without cookies: use Android client to reduce bot detection
+        args.push('--extractor-args', 'youtube:player_client=android');
     }
     
     try {
