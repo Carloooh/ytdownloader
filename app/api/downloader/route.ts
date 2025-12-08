@@ -1,13 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import YTDlpWrap from 'yt-dlp-wrap';
 import path from 'path';
+import fs from 'fs';
 
-// Initialize wrapper with the binary we downloaded
-// Helper to get wrapper instance
-const getYtDlp = () => {
+// Cache for the binary path to avoid re-downloading
+let cachedBinaryPath: string | null = null;
+
+// Helper to get or download yt-dlp binary
+const getYtDlpPath = async (): Promise<string> => {
+    // Return cached path if available
+    if (cachedBinaryPath && fs.existsSync(cachedBinaryPath)) {
+        return cachedBinaryPath;
+    }
+
+    const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
+    const platform = process.platform;
+    
+    // Determine binary name based on platform
+    const binaryName = platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    
+    // Use /tmp on Vercel (only writable directory), project root locally
+    const binaryPath = isProduction 
+        ? path.join('/tmp', binaryName)
+        : path.join(process.cwd(), binaryName);
+    
+    // Check if binary already exists
+    if (fs.existsSync(binaryPath)) {
+        // Verify it's executable on Linux
+        if (platform !== 'win32') {
+            try {
+                fs.chmodSync(binaryPath, 0o755);
+            } catch (error) {
+                console.warn('Could not set executable permissions:', error);
+            }
+        }
+        cachedBinaryPath = binaryPath;
+        return binaryPath;
+    }
+    
+    console.log(`Downloading yt-dlp binary for ${platform} to ${binaryPath}...`);
+    
+    // Download binary if not exists
     // @ts-ignore
     const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
-    return new YTDlpWrapClass(path.join(process.cwd(), 'yt-dlp.exe'));
+    await YTDlpWrapClass.downloadFromGithub(binaryPath);
+    
+    // Make executable on Linux
+    if (platform !== 'win32') {
+        fs.chmodSync(binaryPath, 0o755);
+    }
+    
+    console.log('yt-dlp binary downloaded successfully');
+    cachedBinaryPath = binaryPath;
+    return binaryPath;
+};
+
+// Helper to get wrapper instance
+const getYtDlp = async () => {
+    const ytDlpPath = await getYtDlpPath();
+    // @ts-ignore
+    const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
+    return new YTDlpWrapClass(ytDlpPath);
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -20,7 +73,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Get metadata using yt-dlp --dump-json
-    const metadata = await getYtDlp().execPromise([
+    const ytDlp = await getYtDlp();
+    const metadata = await ytDlp.execPromise([
         url,
         '--dump-json',
         '--no-warnings',
