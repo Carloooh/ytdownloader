@@ -53,10 +53,8 @@ export default function Home() {
     try {
       const res = await axios.post('/api/downloader', { url: videoLink });
       setData(res.data);
-    } catch (err: any) {
-      console.error(err);
-      const msg = err.response?.data?.error || err.message || 'Could not find video. Please check the URL.';
-      toast.error(msg, {
+    } catch (err) {
+      toast.error('Could not find video. Please check the URL.', {
         theme: "colored",
       });
     } finally {

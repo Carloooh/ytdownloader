@@ -3,24 +3,12 @@ import YTDlpWrap from 'yt-dlp-wrap';
 import path from 'path';
 
 // Initialize wrapper with the binary we downloaded
-import fs from 'fs';
-
 // Helper to get wrapper instance
 const getYtDlp = () => {
     // @ts-ignore
     const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
     const filename = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
-    const binaryPath = path.join(process.cwd(), filename);
-    
-    // Debug logging for Vercel
-    if (!fs.existsSync(binaryPath)) {
-        console.error(`BINARY MISSING: Could not find yt-dlp binary at ${binaryPath}`);
-        console.error(`CWD: ${process.cwd()}`);
-        console.error(`Dir contents: ${fs.readdirSync(process.cwd()).join(', ')}`);
-        // Try to look in adjacent folders? Vercel sometimes puts things in weird places
-    }
-
-    return new YTDlpWrapClass(binaryPath);
+    return new YTDlpWrapClass(path.join(process.cwd(), filename));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -136,12 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   } catch (error: any) {
     console.error('Error fetching video info:', error);
-    const msg = error.message || 'Internal Server Error';
-    // Return specifics if strictly needed
-    if (msg.includes('ENOENT')) {
-        return new NextResponse(JSON.stringify({ error: 'Server Configuration Error: yt-dlp binary missing' }), { status: 500, headers: {'Content-Type': 'application/json'} });
-    }
-    return new NextResponse(JSON.stringify({ error: msg }), { status: 500, headers: {'Content-Type': 'application/json'} });
+    return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
   }
 }
 
