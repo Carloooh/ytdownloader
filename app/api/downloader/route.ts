@@ -126,15 +126,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES!);
     }
     
-    // CRITICAL: Use mobile web client for downloadable formats + cookie compatibility
-    // 'mweb' is mobile web browser - compatible with web session cookies
-    // Still provides downloadable formats unlike desktop web client
+    // CRITICAL: Always use mobile clients to get DOWNLOADABLE formats
+    // Without specifying mobile client, YouTube only returns streaming (m3u8) formats
+    // Android/iOS clients request actual downloadable mp4/webm files
     const args = [
         url,
         '--dump-json',
         '--no-warnings',
         '--no-playlist',
-        '--extractor-args', 'youtube:player_client=mweb'
+        '--extractor-args', 'youtube:player_client=ios,android'
     ];
     
     // Add cookies for authentication if available (bypasses bot detection)
