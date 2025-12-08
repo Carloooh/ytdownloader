@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
 import { useState } from 'react';
 import axios from 'axios';
-import { toast, ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { CircleLoader } from 'react-spinners';
 
@@ -11,32 +11,47 @@ type DownloadOption = {
   mimeType: string;
   url: string;
   container: string;
-  audioQuality: string;
+  audioQuality?: string;
+  itag: number;
+  size?: string;
 };
+
+type ApiResponse = {
+  title: string;
+  thumbnail: string;
+  videoOptions: DownloadOption[];
+  audioOptions: DownloadOption[];
+  videoOnlyOptions: DownloadOption[];
+}
 
 export default function Home() {
   const [videoLink, setVideoLink] = useState("");
-  const [options, setOptions] = useState<{ videoOptions: DownloadOption[], audioOptions: DownloadOption[], videoOnlyOptions: DownloadOption[] }>({ videoOptions: [], audioOptions: [], videoOnlyOptions: [] });
-  const [selectedOption, setSelectedOption] = useState<DownloadOption | null>(null);
-  const [showPlayer, setShowPlayer] = useState(false);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mediaType, setMediaType] = useState<"video" | "audio" | null>(null);
 
+  // Helper to group options by quality/label
+  const groupOptions = (options: DownloadOption[]) => {
+    const grouped = new Map<string, DownloadOption[]>();
+    options.forEach(opt => {
+      // Use quality label directly now that backend cleans it
+      const key = opt.quality;
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(opt);
+    });
+    return Array.from(grouped.entries());
+  };
 
   const handleDownload = async () => {
+    if(!videoLink) return;
     setLoading(true);
+    setData(null);
     try {
       const res = await axios.post('/api/downloader', { url: videoLink });
-      setOptions(res.data);
+      setData(res.data);
     } catch (err) {
-      toast.error('An error occurred.\nTry again later or check the video link.', {
-        position: "top-center",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: false,
-        draggable: false,
-        progress: undefined,
+      toast.error('Could not find video. Please check the URL.', {
         theme: "colored",
       });
     } finally {
@@ -44,116 +59,101 @@ export default function Home() {
     }
   }
 
-  const handleOptionSelect = (option: DownloadOption) => {
-    setSelectedOption(option);
-    setShowPlayer(true);
-    if (option.mimeType.includes('video')) {
-      setMediaType('video');
-    } else if (option.mimeType.includes('audio')) {
-      setMediaType('audio');
-    } else {
-      setMediaType(null);
-    }
+  const triggerDownload = (url: string, itag: number, container: string) => {
+    if (!data) return;
+    const downloadUrl = `/api/stream-download?url=${encodeURIComponent(videoLink)}&itag=${itag}&title=${encodeURIComponent(data.title)}&container=${container}`;
+    window.open(downloadUrl, '_blank');
+  }
+
+  const OptionCard = ({ title, options, icon }: { title: string, options: DownloadOption[], icon: string }) => {
+     if (options.length === 0) return null;
+     
+     const grouped = groupOptions(options);
+
+     return (
+       <div className="border-2 border-[mediumspringgreen] p-4 rounded-md w-full bg-black">
+          <h3 className="text-xl font-bold text-[mediumspringgreen] mb-4 border-b border-[mediumspringgreen] pb-2 flex items-center gap-2">
+            <span>{icon}</span> {title}
+          </h3>
+          <div className="flex flex-col gap-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+            {grouped.map(([label, opts], i) => (
+              <div key={i} className="flex flex-col sm:flex-row justify-between items-center bg-gray-900 border border-gray-700 p-3 rounded gap-3">
+                 <span className="font-bold text-white uppercase">{label}</span>
+                 <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <select 
+                        className="bg-black text-[mediumspringgreen] border border-[mediumspringgreen] rounded px-2 py-1 outline-none text-sm w-full sm:w-auto"
+                        onChange={(e) => {
+                             if(e.target.value) {
+                                const [itag, container] = e.target.value.split('-');
+                                triggerDownload(videoLink, Number(itag), container);
+                                e.target.value = ""; // Reset
+                             }
+                        }}
+                    >
+                        <option value="">Download...</option>
+                        {opts.map((opt, j) => (
+                            <option key={j} value={`${opt.itag}-${opt.container}`}>
+                                {opt.container.toUpperCase()} {opt.size ? `(${opt.size})` : ''}
+                            </option>
+                        ))}
+                    </select>
+                 </div>
+              </div>
+            ))}
+          </div>
+       </div>
+     )
   }
 
   return (
-    <main className="mx-auto max-w-screen-lg px-4 flex flex-col justify-center items-center min-h-screen">
-      <div className="bg-yellow-500 text-black p-4 rounded-md mb-4  max-w-screen-lg mx-auto">
-        <p className="text-center text-sm md:text-base font-semibold">
-          Site under maintenance. Downloads are temporarily disabled!
-        </p>
-      </div>
-      <header className="text-center mt-8">
-        <h1 className="text-3xl font-bold text-white">YouTube Media Downloader</h1>
-        <div className="mt-4 coolinput">
-          <label htmlFor="videoLink" className="text">Paste your YouTube video link:</label>
-          <input type="text" placeholder="Write here..." name="input" className="input w-full px-4 py-2 rounded-md border border-gray-300 focus:outline-none focus:border-gray-300 text-center" value={videoLink} onChange={(e) => setVideoLink(e.target.value)} />
+    <main className="mx-auto max-w-7xl px-4 flex flex-col items-center min-h-screen py-10 bg-black">
+      <header className="text-center w-full max-w-3xl mb-12">
+        <h1 className="text-4xl md:text-5xl font-bold text-white mb-8 border-b-4 border-[mediumspringgreen] inline-block pb-2">
+          YouTube Downloader
+        </h1>
+        
+        <div className="coolinput w-full mt-8">
+            <label htmlFor="videoLink" className="text">Paste your YouTube video link:</label>
+            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+              <input 
+                type="text" 
+                placeholder="https://youtube.com/watch?..." 
+                name="input"
+                className="input w-full bg-black text-white"
+                value={videoLink} 
+                onChange={(e) => setVideoLink(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && handleDownload()}
+              />
+              <button 
+                onClick={handleDownload} 
+                disabled={loading}
+                className="button whitespace-nowrap justify-center"
+              >
+                {loading ? <CircleLoader color="mediumspringgreen" size={20} /> : 'SEARCH'}
+              </button>
+            </div>
         </div>
-        <button disabled className="mt-4 bg-gray-400 text-black px-4 py-2 rounded-md cursor-not-allowed">
-          {loading ? <CircleLoader color="#00FA9A" size={24} /> : <>Search</>}
-        </button>
-        {/* <button className="mt-4 bg-white text-black px-4 py-2 rounded-md hover:bg-green-500 border-green-500 border-solid border-r-2 border-l-2 border-t-2 border-b-2" onClick={handleDownload}>
-          {loading ? <CircleLoader color="#00FA9A" size={24} /> : <>Search</>}
-        </button> */}
       </header>
 
-      <ToastContainer
-        position="top-center"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss={false}
-        draggable={false}
-        pauseOnHover={false}
-        theme="colored"
-      />
+      <ToastContainer position="top-center" theme="dark" />
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="sm:col-span-1">
-          {options.videoOptions.length > 0 &&
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Video</h3>
-              <div className="flex flex-wrap justify-center gap-4">
-                {options.videoOptions.map((option, index) => (
-                  <button key={index} className="px-4 py-2 rounded-md flex items-center gap-2 button" onClick={() => handleOptionSelect(option)}>
-                    {option.quality} - {option.container}
-                  </button>
-                ))}
-              </div>
+      {data && (
+        <div className="w-full flex flex-col items-center">
+            <div className="flex flex-col md:flex-row gap-6 items-center border-[mediumspringgreen] border-2 p-4 rounded-lg mb-10 max-w-4xl bg-gray-900">
+                <img src={data.thumbnail} alt="Thumbnail" className="w-64 rounded border border-[mediumspringgreen]" />
+                <div className="text-center md:text-left">
+                    <h2 className="text-xl font-bold text-white mb-2">{data.title}</h2>
+                    <p className="text-[mediumspringgreen] text-sm">Select format from the lists below.</p>
+                </div>
             </div>
-          }
-        </div>
 
-        <div className="sm:col-span-1">
-          {options.audioOptions.length > 0 &&
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Audio Only</h3>
-              <div className="flex flex-wrap justify-center gap-4">
-                {options.audioOptions.map((option, index) => (
-                  <button key={index} className="button px-4 py-2 rounded-md flex items-center gap-2" onClick={() => handleOptionSelect(option)}>
-                    {option.audioQuality.split('_').pop()?.toLowerCase()} - {option.container}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                <OptionCard title="Video + Audio" options={data.videoOptions} icon="🎥" />
+                <OptionCard title="Audio Only" options={data.audioOptions} icon="🎵" />
+                <OptionCard title="Video Only" options={data.videoOnlyOptions} icon="🔇" />
             </div>
-          }
         </div>
-
-        <div className="sm:col-span-1">
-          {options.videoOnlyOptions.length > 0 &&
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-white text-center flex items-center justify-center gap-2">Video Only</h3>
-              <div className="flex flex-wrap justify-center gap-4">
-                {options.videoOnlyOptions.map((option, index) => (
-                  <button key={index} className="px-4 py-2 rounded-md flex items-center gap-2 button" onClick={() => handleOptionSelect(option)}>
-                    {option.quality} - {option.container}
-                  </button>
-                ))}
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
-      {showPlayer && selectedOption &&
-        <div className="mt-8 flex justify-center">
-          <div className={mediaType === "audio" ? "audio-player-size" : "video-player-size"}>
-            <video src={selectedOption.url} className="object-cover" controls width={mediaType === "audio" ? "300" : "640"} height={mediaType === "audio" ? "0" : "360"}></video>
-          </div>
-        </div>
-      }
-
-      <div className="mt-8 mb-4">
-        <h2 className="text-2xl font-bold text-white mb-4 text-center">How to use</h2>
-        <div className="flex justify-center items-center text-white text-wrap flex-col">
-          <p><span className="text-green-500">1.</span> Paste a valid YouTube video URL and press Search<span className="text-green-500">.</span></p>
-          <p><span className="text-green-500">2.</span> Select a quality and format option<span className="text-green-500">.</span></p>
-          <p><span className="text-green-500">3.</span> Click on the media player's options menu and then choose <span className="text-green-500">"</span>Download<span className="text-green-500">".</span></p>
-        </div>
-      </div>
-
+      )}
     </main>
   );
 }

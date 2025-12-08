@@ -9,13 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "axios": "^1.13.2",
     "next": "16.0.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-spinners": "^0.17.0",
     "react-toastify": "^11.0.5",
-    "ytdl-core": "^4.11.5"
+    "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

@@ -89,3 +89,15 @@ body {
 .button:active:after {
   background: teal;
 }
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: black;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: mediumspringgreen;
+  border-radius: 10px;
+}

@@ -1,83 +1,128 @@
-import ytdl from 'ytdl-core';
 import { NextRequest, NextResponse } from 'next/server';
+import YTDlpWrap from 'yt-dlp-wrap';
+import path from 'path';
 
-interface Option {
-  quality: string;
-  mimeType: string;
-  url: string;
-  container: string;
-  audioQuality: string;
+// Initialize wrapper with the binary we downloaded
+// Helper to get wrapper instance
+const getYtDlp = () => {
+    // @ts-ignore
+    const YTDlpWrapClass = YTDlpWrap.default || YTDlpWrap;
+    return new YTDlpWrapClass(path.join(process.cwd(), 'yt-dlp.exe'));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const requestBody = await request.json();
-    const url: string = requestBody.url;
+    const { url } = await request.json();
 
-    if (!ytdl.validateURL(url)) {
-      throw new Error('Invalid YouTube URL');
+    // Basic validation
+    if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+        return new NextResponse('Invalid URL', { status: 400 });
     }
 
-    const info = await ytdl.getInfo(url);
+    // Get metadata using yt-dlp --dump-json
+    const metadata = await getYtDlp().execPromise([
+        url,
+        '--dump-json',
+        '--no-warnings',
+        '--no-playlist'
+    ]);
+    
+    const info = JSON.parse(metadata);
 
-    if (!info) {
-      throw new Error('Video not found');
-    }
+    const videoOptions: any[] = [];
+    const audioOptions: any[] = [];
+    const videoOnlyOptions: any[] = [];
 
-    const formats = info.formats;
+    // Formats are usually sorted by yt-dlp, but we process them
+    let formats = info.formats || [];
+    // Ensure we process best formats? Reverse is often helpful as yt-dlp lists best at end
+    formats = formats.reverse();
 
-    const videoOptions: Option[] = [];
-    const audioOptions: Option[] = [];
-    const videoOnlyOptions: Option[] = [];
+    formats.forEach((format: any) => {
+        // Exclude m3u8 (HLS) formats as they are playlists
+        if (format.protocol === 'm3u8' || format.protocol === 'm3u8_native') return;
 
-    formats.forEach((format) => {
-      const option: Option = {
-        quality: format.qualityLabel || '',
-        mimeType: format.mimeType || '',
-        url: format.url,
-        container: format.container || '',
-        audioQuality: format.audioQuality || '',
-      };
-      if (format.hasVideo && format.hasAudio) {
-        videoOptions.push(option);
-      } else if (format.hasVideo && !format.hasAudio) {
-        videoOnlyOptions.push(option);
-      } else if (!format.hasVideo && format.hasAudio) {
-        audioOptions.push(option);
-      }
+        // Better quality label parsing
+        let qualityLabel = 'Unknown';
+        if (format.height) {
+            qualityLabel = `${format.height}p`;
+        } else if (format.resolution) {
+            qualityLabel = format.resolution;
+        } else if (format.format_note) {
+            qualityLabel = format.format_note;
+        }
+
+        const fileSize = format.filesize || format.filesize_approx;
+        const fileSizeStr = fileSize ? `${(fileSize / (1024 * 1024)).toFixed(1)} MB` : '';
+
+        const option = {
+            quality: qualityLabel,
+            mimeType: format.ext,
+            url: format.url,
+            container: format.ext,
+            audioQuality: format.acodec !== 'none' ? 'Has Audio' : undefined,
+            itag: format.format_id, 
+            hasAudio: format.acodec !== 'none',
+            hasVideo: format.vcodec !== 'none',
+            height: format.height || 0,
+            abr: format.abr || 0,
+            size: fileSizeStr
+        };
+
+        if(option.container !== 'mp4' && option.container !== 'webm' && option.container !== 'm4a') return;
+
+        if (option.hasVideo && option.hasAudio) {
+            videoOptions.push(option);
+        } else if (!option.hasVideo && option.hasAudio) {
+             const kbps = Math.round(option.abr || 0);
+             option.audioQuality = `Audio ${kbps > 0 ? kbps + 'kbps' : 'Medium'}`;
+             // Override quality label for audio only to be cleaner
+             option.quality = option.audioQuality;
+             audioOptions.push(option);
+        } else if (option.hasVideo && !option.hasAudio) {
+            videoOnlyOptions.push(option);
+        }
     });
 
-    videoOptions.sort((a, b) => {
-      if (a.quality === b.quality) {
-        return a.container.localeCompare(b.container);
-      }
-      return b.quality.localeCompare(a.quality);
+    const cleanup = (opts: any[]) => {
+        const unique = new Map();
+        opts.forEach(o => {
+            // Key by quality to dedupe (e.g. 720p-mp4)
+            // Ideally we keep the one with known size?
+            const key = o.hasVideo ? `${o.quality}-${o.container}` : `${o.audioQuality}-${o.container}`;
+            
+            if(!unique.has(key)) {
+                 unique.set(key, o);
+            } else {
+                 // Optimization: If current has file size and stored doesn't, swap
+                 const existing = unique.get(key);
+                 if (!existing.size && o.size) {
+                     unique.set(key, o);
+                 }
+            }
+        });
+        
+        // Sort
+        return Array.from(unique.values()).sort((a: any, b: any) => {
+            // Sort by height descending for video
+            if (a.hasVideo && b.hasVideo) return b.height - a.height;
+            // Sort by bitrate for audio
+            if (!a.hasVideo && !b.hasVideo) return b.abr - a.abr;
+            return 0;
+        });
+    };
+
+    return NextResponse.json({
+        title: info.title,
+        thumbnail: info.thumbnail,
+        videoOptions: cleanup(videoOptions),
+        audioOptions: cleanup(audioOptions),
+        videoOnlyOptions: cleanup(videoOnlyOptions)
     });
 
-    audioOptions.sort((a, b) => {
-      if (a.quality === b.quality) {
-        return a.container.localeCompare(b.container);
-      }
-      return b.quality.localeCompare(a.quality);
-    });
-
-    videoOnlyOptions.sort((a, b) => {
-      if (a.quality === b.quality) {
-        return a.container.localeCompare(b.container);
-      }
-      return b.quality.localeCompare(a.quality);
-    });
-
-    return NextResponse.json({ videoOptions, audioOptions, videoOnlyOptions });
   } catch (error: any) {
-    console.error(error);
-    return new NextResponse(error.message, {
-      status: 400,
-      statusText: 'Bad Request',
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-    });
+    console.error('Error fetching video info:', error);
+    return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
   }
 }
 
